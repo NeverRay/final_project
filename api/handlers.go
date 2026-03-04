@@ -9,10 +9,106 @@ import (
 	"go_final_project/pkg/db"
 )
 
+const (
+	dateFormat = "20060102"
+	tasksLimit = 50
+)
+
+type TaskRequest struct {
+	ID      string `json:"id"`
+	Date    string `json:"date"`
+	Title   string `json:"title"`
+	Comment string `json:"comment"`
+	Repeat  string `json:"repeat"`
+}
+
+type TaskResponse struct {
+	ID      string `json:"id"`
+	Date    string `json:"date"`
+	Title   string `json:"title"`
+	Comment string `json:"comment"`
+	Repeat  string `json:"repeat"`
+}
+
+type TasksResponse struct {
+	Tasks []TaskResponse `json:"tasks"`
+}
+
 type Handler struct{}
 
 func NewHandler() *Handler {
 	return &Handler{}
+}
+
+func checkDate(task *TaskRequest) error {
+	now := time.Now()
+	today := now.Format(dateFormat)
+
+	if task.Date == "" || task.Date == " " {
+		task.Date = today
+		return nil
+	}
+
+	if task.Date == "today" {
+		task.Date = today
+		return nil
+	}
+
+	t, err := time.Parse(dateFormat, task.Date)
+	if err != nil {
+		return err
+	}
+
+	taskDateStr := t.Format(dateFormat)
+	if taskDateStr < today {
+		if task.Repeat == "" || task.Repeat == " " {
+			task.Date = today
+		} else {
+			next, err := NextDate(now, task.Date, task.Repeat)
+			if err != nil || next == "" {
+				task.Date = today
+			} else {
+				task.Date = next
+			}
+		}
+	}
+
+	return nil
+}
+
+func validateRepeat(repeat string) error {
+	if repeat == "" || repeat == " " {
+		return nil
+	}
+
+	_, err := NextDate(time.Now(), time.Now().Format(dateFormat), repeat)
+	return err
+}
+
+func tasksHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
+		return
+	}
+
+	tasks, err := db.GetTasks(tasksLimit)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	taskList := make([]TaskResponse, len(tasks))
+	for i, t := range tasks {
+		taskList[i] = TaskResponse{
+			ID:      strconv.FormatInt(t.ID, 10),
+			Date:    t.Date,
+			Title:   t.Title,
+			Comment: t.Comment,
+			Repeat:  t.Repeat,
+		}
+	}
+
+	writeJSON(w, http.StatusOK, TasksResponse{Tasks: taskList})
 }
 
 func (h *Handler) TaskHandler(w http.ResponseWriter, r *http.Request) {
@@ -155,13 +251,11 @@ func (h *Handler) DoneHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if task.Repeat == "" || task.Repeat == " " {
-		// Нет повторения — удаляем
 		if err := db.DeleteTask(id); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
 	} else {
-
 		nextDate := CalculateNextDate(task.Date, task.Repeat)
 		if nextDate != "" {
 			err := db.UpdateTask(&db.Task{
@@ -198,7 +292,7 @@ func (h *Handler) NextDateHandler(w http.ResponseWriter, r *http.Request) {
 	var now time.Time
 	if nowStr != "" {
 		var err error
-		now, err = time.Parse("20060102", nowStr)
+		now, err = time.Parse(dateFormat, nowStr)
 		if err != nil {
 			now = time.Now()
 		}

@@ -12,7 +12,7 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 		return "", errors.New("empty repeat")
 	}
 
-	date, err := time.Parse("20060102", dstart)
+	date, err := time.Parse(dateFormat, dstart)
 	if err != nil {
 		return "", errors.New("invalid date format")
 	}
@@ -65,8 +65,8 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 }
 
 func afterNow(date, now time.Time) bool {
-	dateStr := date.Format("20060102")
-	nowStr := now.Format("20060102")
+	dateStr := date.Format(dateFormat)
+	nowStr := now.Format(dateFormat)
 	return dateStr > nowStr
 }
 
@@ -80,7 +80,7 @@ func nextYearly(date, now time.Time) (string, error) {
 			}
 		}
 		if afterNow(date, now) {
-			return date.Format("20060102"), nil
+			return date.Format(dateFormat), nil
 		}
 	}
 }
@@ -89,7 +89,7 @@ func nextDaily(date time.Time, days int, now time.Time) (string, error) {
 	for {
 		date = date.AddDate(0, 0, days)
 		if afterNow(date, now) {
-			return date.Format("20060102"), nil
+			return date.Format(dateFormat), nil
 		}
 	}
 }
@@ -103,7 +103,7 @@ func nextWeekly(date time.Time, weekdays []int, now time.Time) (string, error) {
 		}
 		for _, wd := range weekdays {
 			if wd == goDay {
-				return current.Format("20060102"), nil
+				return current.Format(dateFormat), nil
 			}
 		}
 		current = current.AddDate(0, 0, 1)
@@ -143,7 +143,7 @@ func nextMonthly(date time.Time, monthdays []int, months []int, now time.Time) (
 			if day > 0 && day <= lastDay {
 				testDate := time.Date(current.Year(), current.Month(), day, 0, 0, 0, 0, time.Local)
 				if afterNow(testDate, now) {
-					return testDate.Format("20060102"), nil
+					return testDate.Format(dateFormat), nil
 				}
 			}
 		}
